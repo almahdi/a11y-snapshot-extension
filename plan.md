@@ -511,5 +511,5 @@ The extension uses `<all_urls>` in `host_permissions` to:
 
 ---
 
-*Project created and documented by AI Assistant*  
-*For questions or issues, refer to README.md or plan.md*
+*Copyright (C) 2026 Ali Almahdi*  
+*Licensed under the GNU Affero General Public License v3 (AGPL-3.0)*
