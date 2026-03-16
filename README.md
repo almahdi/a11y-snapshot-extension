@@ -198,6 +198,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
+## Author
+
+**Ali Almahdi** - Digital Innovation Architect & AI Enthusiast  
+Website: [https://ali.ac](https://ali.ac)
+
 ## Resources
 
 - [Chrome DevTools Protocol - Accessibility Domain](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/)
