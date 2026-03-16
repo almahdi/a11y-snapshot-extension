@@ -1,6 +1,22 @@
 /**
  * Popup Script
  *
+ * a11y-snapshot-extension - Chrome extension to capture full-page accessibility snapshots
+ * Copyright (C) 2026 Ali Almahdi
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  * Handles the extension popup UI:
  * - Display current tab information
  * - Capture button handler
@@ -19,6 +35,7 @@ const errorMessageEl = document.getElementById('errorMessage');
 const nodeCountEl = document.getElementById('nodeCount');
 const frameCountEl = document.getElementById('frameCount');
 const captureTimeEl = document.getElementById('captureTime');
+const copyBtn = document.getElementById('copyBtn');
 const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 const viewTreeBtn = document.getElementById('viewTreeBtn');
 // State
@@ -102,6 +119,57 @@ function downloadSnapshot() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     console.log('[Popup] Downloaded snapshot:', filename);
+}
+/**
+ * Copy snapshot JSON to clipboard
+ */
+async function copyToClipboard() {
+    if (!currentSnapshot) {
+        console.error('[Popup] No snapshot to copy');
+        return;
+    }
+    const dataStr = JSON.stringify(currentSnapshot, null, 2);
+    try {
+        await navigator.clipboard.writeText(dataStr);
+        // Visual feedback - temporarily change button text
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '✅ Copied!';
+        copyBtn.disabled = true;
+        setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+            copyBtn.disabled = false;
+        }, 1500);
+        console.log('[Popup] Copied snapshot to clipboard');
+    }
+    catch (error) {
+        console.error('[Popup] Failed to copy to clipboard:', error);
+        // Fallback for older browsers or when clipboard API fails
+        const textarea = document.createElement('textarea');
+        textarea.value = dataStr;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = '✅ Copied!';
+            copyBtn.disabled = true;
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.disabled = false;
+            }, 1500);
+            console.log('[Popup] Copied snapshot to clipboard (fallback)');
+        }
+        catch (fallbackError) {
+            console.error('[Popup] Fallback copy also failed:', fallbackError);
+            copyBtn.innerHTML = '❌ Failed';
+            setTimeout(() => {
+                copyBtn.innerHTML = '📋 Copy JSON';
+            }, 1500);
+        }
+        document.body.removeChild(textarea);
+    }
 }
 /**
  * View the accessibility tree (opens a new tab with formatted view)
@@ -236,6 +304,7 @@ function init() {
     updateTabInfo();
     // Set up event listeners
     captureBtn?.addEventListener('click', handleCapture);
+    copyBtn?.addEventListener('click', copyToClipboard);
     downloadJsonBtn?.addEventListener('click', downloadSnapshot);
     viewTreeBtn?.addEventListener('click', viewTree);
     // Set initial status

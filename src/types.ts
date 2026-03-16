@@ -317,7 +317,7 @@ export type ExtensionMessage =
  */
 export interface FrameInfo {
   tabId: number;
-  frameId: number;
+  frameId: number | string;  // Can be numeric (webNavigation) or string (CDP frameId)
   url: string;
   title: string;
   isTopFrame: boolean;

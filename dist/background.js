@@ -1,6 +1,22 @@
 /**
  * Background Service Worker
  *
+ * a11y-snapshot-extension - Chrome extension to capture full-page accessibility snapshots
+ * Copyright (C) 2026 Ali Almahdi
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  * Handles:
  * - Debugger attachment/detachment
  * - CDP Accessibility API calls
@@ -18,11 +34,96 @@ async function enableAccessibility(tabId) {
     await chrome.debugger.sendCommand({ tabId }, 'Accessibility.enable');
 }
 /**
- * Get the full accessibility tree for a tab
+ * Recursively collect all frame IDs from a frame tree
+ */
+function collectAllFrameIds(frameTree) {
+    const ids = [];
+    if (frameTree.frame?.id) {
+        ids.push(frameTree.frame.id);
+    }
+    if (frameTree.childFrames && Array.isArray(frameTree.childFrames)) {
+        for (const child of frameTree.childFrames) {
+            ids.push(...collectAllFrameIds(child));
+        }
+    }
+    return ids;
+}
+/**
+ * Get all frame IDs for a tab using CDP Page.getFrameTree
+ */
+async function getCDPFrameIds(tabId) {
+    try {
+        const response = await chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree');
+        const frameTree = response;
+        const frameIds = collectAllFrameIds(frameTree.frameTree);
+        console.log(`[A11y] Found ${frameIds.length} CDP frames:`, frameIds);
+        return frameIds;
+    }
+    catch (error) {
+        console.error(`[A11y] Failed to get frame tree for tab ${tabId}:`, error);
+        // Fallback: try to get from webNavigation API
+        const frames = await chrome.webNavigation.getAllFrames({ tabId });
+        return frames?.map(f => String(f.frameId)) ?? ['0'];
+    }
+}
+/**
+ * Get the full accessibility tree for a specific frame
+ */
+async function getAXTreeForFrame(tabId, frameId) {
+    const response = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree', { frameId, depth: -1 });
+    return response.nodes;
+}
+/**
+ * Get the full accessibility tree for a tab, including all iframes
  */
 async function getFullAXTree(tabId) {
-    const response = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree', { depth: -1 });
-    return response.nodes;
+    try {
+        // Get all frame IDs in the page
+        const frameIds = await getCDPFrameIds(tabId);
+        console.log(`[A11y] Fetching AX trees for ${frameIds.length} frames in tab ${tabId}`);
+        // Fetch AX tree for each frame
+        const allTrees = [];
+        for (const frameId of frameIds) {
+            try {
+                const nodes = await getAXTreeForFrame(tabId, frameId);
+                console.log(`[A11y] - Frame ${frameId}: ${nodes.length} nodes`);
+                allTrees.push(nodes);
+            }
+            catch (error) {
+                console.warn(`[A11y] Failed to get AX tree for frame ${frameId}:`, error);
+                // Continue with other frames even if one fails
+            }
+        }
+        // Combine all trees into one array
+        const combinedTree = allTrees.flat();
+        console.log(`[A11y] Combined tree has ${combinedTree.length} total nodes`);
+        return combinedTree;
+    }
+    catch (error) {
+        console.error(`[A11y] Error getting full AX tree:`, error);
+        // Fallback: try to get just the main frame tree
+        console.log(`[A11y] Falling back to main frame only`);
+        const response = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree', { depth: -1 });
+        return response.nodes;
+    }
+}
+/**
+ * Check if a URL can be debugged
+ */
+function isUrlDebuggable(url) {
+    if (!url)
+        return false;
+    const restrictedPrefixes = [
+        'chrome://',
+        'chrome-extension://',
+        'about:',
+        'edge://',
+        'brave://',
+        'vivaldi://',
+        'opera://',
+        'devtools://',
+    ];
+    return !restrictedPrefixes.some(prefix => url.startsWith(prefix));
 }
 /**
  * Attach debugger to a tab
@@ -32,6 +133,11 @@ async function attachDebugger(tabId) {
     if (isAttached) {
         console.log(`[A11y] Debugger already attached to tab ${tabId}`);
         return;
+    }
+    // Check if the tab's URL is debuggable
+    const tab = await chrome.tabs.get(tabId);
+    if (!isUrlDebuggable(tab.url)) {
+        throw new Error(`Cannot capture snapshot on this page. Chrome internal pages (chrome://, about:, etc.) are not accessible. Please navigate to a regular webpage.`);
     }
     try {
         await chrome.debugger.attach({ tabId }, '1.3');
@@ -110,6 +216,32 @@ async function requestFrameInfo(tabId) {
     });
 }
 /**
+ * Collect frame info from CDP frame tree
+ */
+function collectFrameInfoFromTree(frameTree, tabId, timestamp) {
+    const infos = [];
+    function processFrame(frame, isTopFrame) {
+        if (frame.frame?.id) {
+            // Use the full CDP frame ID (string) to match AXTree nodes
+            infos.push({
+                tabId,
+                frameId: frame.frame.id,
+                url: frame.frame.url || '',
+                title: '',
+                isTopFrame,
+                timestamp,
+            });
+        }
+        if (frame.childFrames && Array.isArray(frame.childFrames)) {
+            for (const child of frame.childFrames) {
+                processFrame(child, false);
+            }
+        }
+    }
+    processFrame(frameTree, true);
+    return infos;
+}
+/**
  * Capture accessibility snapshot for a tab
  */
 export async function captureAccessibilitySnapshot(tabId) {
@@ -118,37 +250,58 @@ export async function captureAccessibilitySnapshot(tabId) {
         console.log(`[A11y] Starting accessibility snapshot for tab ${tabId}`);
         // Attach debugger
         await attachDebugger(tabId);
-        // Get the full AXTree
+        // Get the full AXTree (including all frames)
         console.log(`[A11y] Fetching AXTree for tab ${tabId}`);
         const axTree = await getFullAXTree(tabId);
         console.log(`[A11y] Retrieved ${axTree.length} nodes from AXTree`);
-        // Get frame information
-        let frameInfos = tabFrameInfo.get(tabId) || [];
+        // Get frame information from CDP first (preferred, matches AXTree frameIds)
+        let frameInfos = [];
+        const timestamp = Date.now();
+        try {
+            const frameTreeResponse = await chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree');
+            const frameTree = frameTreeResponse.frameTree;
+            frameInfos = collectFrameInfoFromTree(frameTree, tabId, timestamp);
+            console.log(`[A11y] Got ${frameInfos.length} frames from CDP frame tree`);
+        }
+        catch (error) {
+            console.warn(`[A11y] Failed to get frame tree from CDP, falling back to webNavigation:`, error);
+        }
+        // If CDP didn't give us frame info, try content scripts
         if (frameInfos.length === 0) {
-            // Try to get frame info from webNavigation API
+            frameInfos = tabFrameInfo.get(tabId) || [];
+            if (frameInfos.length > 0) {
+                console.log(`[A11y] Got ${frameInfos.length} frames from content scripts`);
+            }
+        }
+        // Last fallback: webNavigation API
+        if (frameInfos.length === 0) {
             try {
                 const frames = await chrome.webNavigation.getAllFrames({ tabId });
                 frameInfos = (frames ?? []).map(frame => ({
                     tabId,
                     frameId: frame.frameId,
                     url: frame.url,
-                    title: '', // We don't have title from this API
+                    title: '',
                     isTopFrame: frame.frameId === 0,
-                    timestamp: Date.now(),
+                    timestamp,
                 }));
+                console.log(`[A11y] Got ${frameInfos.length} frames from webNavigation`);
             }
             catch (error) {
-                console.error(`[A11y] Failed to get frame info:`, error);
-                // Create minimal frame info
-                frameInfos = [{
-                        tabId,
-                        frameId: 0,
-                        url: '',
-                        title: '',
-                        isTopFrame: true,
-                        timestamp: Date.now(),
-                    }];
+                console.error(`[A11y] Failed to get frame info from webNavigation:`, error);
             }
+        }
+        // Ultimate fallback: create minimal frame info
+        if (frameInfos.length === 0) {
+            frameInfos = [{
+                    tabId,
+                    frameId: 0,
+                    url: '',
+                    title: '',
+                    isTopFrame: true,
+                    timestamp,
+                }];
+            console.log(`[A11y] Using minimal frame info (1 frame)`);
         }
         // Get tab information
         const tab = await chrome.tabs.get(tabId);
@@ -156,7 +309,7 @@ export async function captureAccessibilitySnapshot(tabId) {
             axTree,
             frameCount: frameInfos.length,
             frameInfos,
-            timestamp: Date.now(),
+            timestamp,
             tabId,
             pageTitle: tab.title,
             pageUrl: tab.url,
