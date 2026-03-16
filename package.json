@@ -19,8 +19,8 @@
     "typescript",
     "CDP"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "Ali Almahdi",
+  "license": "AGPL-3.0",
   "devDependencies": {
     "@types/chrome": "^0.0.260",
     "typescript": "^5.3.3"

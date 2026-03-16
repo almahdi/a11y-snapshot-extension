@@ -1,6 +1,22 @@
 /**
  * Background Service Worker
  * 
+ * a11y-snapshot-extension - Chrome extension to capture full-page accessibility snapshots
+ * Copyright (C) 2026 Ali Almahdi
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * 
  * Handles:
  * - Debugger attachment/detachment
  * - CDP Accessibility API calls
@@ -46,6 +62,26 @@ async function getFullAXTree(tabId: number): Promise<AXNode[]> {
 }
 
 /**
+ * Check if a URL can be debugged
+ */
+function isUrlDebuggable(url: string | undefined): boolean {
+  if (!url) return false;
+  
+  const restrictedPrefixes = [
+    'chrome://',
+    'chrome-extension://',
+    'about:',
+    'edge://',
+    'brave://',
+    'vivaldi://',
+    'opera://',
+    'devtools://',
+  ];
+  
+  return !restrictedPrefixes.some(prefix => url.startsWith(prefix));
+}
+
+/**
  * Attach debugger to a tab
  */
 async function attachDebugger(tabId: number): Promise<void> {
@@ -54,6 +90,12 @@ async function attachDebugger(tabId: number): Promise<void> {
   if (isAttached) {
     console.log(`[A11y] Debugger already attached to tab ${tabId}`);
     return;
+  }
+  
+  // Check if the tab's URL is debuggable
+  const tab = await chrome.tabs.get(tabId);
+  if (!isUrlDebuggable(tab.url)) {
+    throw new Error(`Cannot capture snapshot on this page. Chrome internal pages (chrome://, about:, etc.) are not accessible. Please navigate to a regular webpage.`);
   }
   
   try {

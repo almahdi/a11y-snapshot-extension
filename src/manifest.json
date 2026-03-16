@@ -6,7 +6,8 @@
   "permissions": [
     "debugger",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "webNavigation"
   ],
   "host_permissions": [
     "<all_urls>"
