@@ -1,0 +1,515 @@
+# A11y Snapshot Extension - Project Plan
+
+## Project Overview
+A Chrome extension (Manifest V3) written in TypeScript that captures full-page accessibility snapshots including content inside iframes using the Chrome DevTools Protocol (CDP) Accessibility API.
+
+**Status:** ✅ Core Implementation Complete  
+**Last Updated:** 2026-03-16  
+**Version:** 1.0.0
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Background Service Worker                 │
+│  - Handles debugger attachment/detachment                    │
+│  - Calls CDP Accessibility.getFullAXTree                     │
+│  - Aggregates AXTree data from all frames                    │
+│  - Manages message passing                                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ chrome.debugger API
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       Chrome Tab                             │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
+│  │   Top Frame         │    │   iframe (cross-origin)     │ │
+│  │   - content.ts      │    │   - content.ts              │ │
+│  │   - Collects DOM    │    │   - Collects DOM            │ │
+│  │   - Sends messages  │    │   - Sends messages          │ │
+│  └─────────────────────┘    └─────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Implementation Status
+
+### Phase 1: Project Setup ✅ COMPLETE
+- [x] Create project directory structure
+- [x] Create `package.json` with dependencies and scripts
+- [x] Create `tsconfig.json` for TypeScript configuration
+- [x] Set up TypeScript build (tsc)
+- [ ] Set up ESLint and Prettier (optional - future)
+
+### Phase 2: Core Extension Files ✅ COMPLETE
+- [x] Create `manifest.json` (Manifest V3)
+  - [x] Define permissions: debugger, tabs, activeTab
+  - [x] Define host_permissions: <all_urls>
+  - [x] Configure background service worker
+  - [x] Configure content scripts with all_frames: true
+  
+- [x] Create `src/types.ts`
+  - [x] Define CDP AXNode interface
+  - [x] Define Accessibility Tree interfaces
+  - [x] Define message passing types
+  - [x] Add type guards
+  
+- [x] Create `src/background.ts`
+  - [x] Implement debugger attach function
+  - [x] Implement Accessibility.enable call
+  - [x] Implement Accessibility.getFullAXTree call
+  - [x] Implement debugger detach function
+  - [x] Handle message passing from content scripts
+  - [x] Aggregate frame information from all frames
+  - [x] Error handling and logging
+  
+- [x] Create `src/content.ts`
+  - [x] Run in all frames (all_frames: true)
+  - [x] Collect frame information (URL, title, frameId, isTopFrame)
+  - [x] Send frame data to background worker
+  - [x] Handle messages from background
+
+### Phase 3: UI Components ✅ COMPLETE
+- [x] Create `src/popup.html` - Extension popup UI
+- [x] Create `src/popup.ts` - Popup logic
+- [x] Create `src/popup.css` - Popup styles
+- [x] Add capture button and status display
+- [x] Add results display (node count, frame count, capture time)
+- [x] Add download JSON functionality
+- [x] Add view tree functionality (opens viewer in new tab)
+- [x] Add tab information display
+- [x] Add notes/warnings section
+
+### Phase 4: Build & Testing ✅ BUILD READY
+- [x] Configure build script (TypeScript compiler)
+- [x] Create build output to `dist/` folder
+- [x] Add icon files (placeholder PNGs)
+- [x] Copy all assets in build script
+- [ ] Test extension loading in Chrome (chrome://extensions/)
+- [ ] Test on pages with iframes
+- [ ] Test cross-origin iframe capture
+- [ ] Test large/complex pages
+
+### Phase 5: Polish & Documentation ✅ COMPLETE
+- [x] Add error handling and user feedback
+- [x] Add loading states and progress indicators
+- [x] Create README.md with usage instructions
+- [x] Add extension icons (placeholder)
+- [ ] Test edge cases (about:blank iframes, data: URLs)
+- [x] Create this plan.md with full documentation
+
+---
+
+## Project Structure
+
+```
+a11y-snapshot-extension/
+├── plan.md                 # This file - complete project plan
+├── README.md               # User-facing documentation
+├── package.json            # Dependencies and build scripts
+├── tsconfig.json           # TypeScript configuration
+├── src/
+│   ├── manifest.json       # Extension manifest (V3)
+│   ├── types.ts            # TypeScript types for CDP and messages
+│   ├── background.ts       # Service worker (debugger, CDP calls)
+│   ├── content.ts          # Content script (runs in all frames)
+│   ├── popup.html          # Popup UI structure
+│   ├── popup.css           # Popup styling
+│   ├── popup.ts            # Popup logic and event handlers
+│   └── icons/
+│       ├── icon16.png      # 16x16 extension icon
+│       ├── icon48.png      # 48x48 extension icon
+│       └── icon128.png     # 128x128 extension icon
+└── dist/                   # Build output (generated by npm run build)
+    ├── manifest.json
+    ├── background.js
+    ├── background.js.map
+    ├── content.js
+    ├── content.js.map
+    ├── popup.js
+    ├── popup.js.map
+    ├── popup.html
+    ├── popup.css
+    └── icons/
+```
+
+---
+
+## How to Test
+
+### Step 1: Build the Extension
+
+```bash
+cd /Users/ali/Projects/a11y-snapshot-extension
+
+# Install dependencies (first time only)
+npm install
+
+# Build the extension
+npm run build
+```
+
+Verify the build succeeded and `dist/` folder contains all files.
+
+### Step 2: Load Extension in Chrome
+
+1. Open Google Chrome
+2. Navigate to `chrome://extensions/`
+3. Enable **Developer mode** using the toggle in the top-right corner
+4. Click **Load unpacked** button
+5. Select the `dist/` folder from the project directory
+6. The extension should now appear in the list with a green indicator
+
+### Step 3: Test Basic Capture
+
+1. Navigate to a simple webpage (e.g., `https://example.com`)
+2. Click the extension icon in the Chrome toolbar
+3. The popup should display:
+   - Current tab title and URL
+   - "Capture Snapshot" button
+   - Status showing "Ready to capture"
+4. Click **Capture Snapshot**
+5. Observe:
+   - Status changes to "Capturing accessibility tree..." (loading state)
+   - A yellow bar appears at the top: "An extension is debugging this browser"
+   - After capture completes:
+     - Status shows "Capture complete!" (green)
+     - Results section appears with:
+       - AX Nodes count
+       - Frames count
+       - Capture time in milliseconds
+     - Two buttons appear: "Download JSON" and "View Tree"
+
+### Step 4: Test Download Functionality
+
+1. After a successful capture, click **Download JSON**
+2. A file named `a11y-snapshot-{tabId}-{timestamp}.json` should download
+3. Open the file and verify it contains:
+   - `axTree`: Array of accessibility nodes
+   - `frameCount`: Number of frames captured
+   - `frameInfos`: Array of frame information
+   - `timestamp`: Capture timestamp
+   - `tabId`: Tab identifier
+   - `pageTitle`: Page title
+   - `pageUrl`: Page URL
+
+### Step 5: Test View Tree Functionality
+
+1. After capture, click **View Tree**
+2. A new tab opens with:
+   - Capture statistics
+   - Raw JSON view of the snapshot
+3. Verify the JSON is properly formatted and readable
+
+### Step 6: Test with Iframes
+
+1. Navigate to a page with iframes (e.g., a page embedding YouTube, or a test page with nested iframes)
+2. Open the extension and capture
+3. Verify:
+   - Frame count is greater than 1
+   - No errors in the console
+   - All frames are included in the snapshot
+
+### Step 7: Test Cross-Origin Iframes
+
+1. Navigate to a page with cross-origin iframes (different domain than parent)
+2. Capture the snapshot
+3. Verify the extension handles cross-origin frames correctly
+4. Check browser console for any permission warnings
+
+### Step 8: Test Error Handling
+
+1. Try capturing on a Chrome internal page (`chrome://extensions/`, `chrome://settings/`)
+   - Expected: Error message about not being able to access the page
+2. Try capturing with no active tab
+   - Expected: Error message "No active tab found"
+3. Verify error messages are displayed in the popup
+
+### Step 9: Debug and Verify
+
+**Check Background Service Worker:**
+1. Go to `chrome://extensions/`
+2. Find the A11y Snapshot extension
+3. Click "Service Worker" link under the extension
+4. DevTools opens showing background script console
+5. Verify logs appear during capture:
+   - `[A11y] Background service worker initialized`
+   - `[A11y] Debugger attached to tab X`
+   - `[A11y] Accessibility domain enabled for tab X`
+   - `[A11y] Fetching AXTree for tab X`
+   - `[A11y] Snapshot complete in Xms`
+
+**Check Content Script:**
+1. Open any webpage
+2. Open DevTools (F12)
+3. Go to Console tab
+4. Look for:
+   - `[A11y Content] Content script initialized`
+   - `[A11y Content] Sent frame info`
+
+**Check Popup:**
+1. Open the extension popup
+2. Right-click inside the popup
+3. Select "Inspect"
+4. Verify no errors in the console
+
+---
+
+## Build Commands
+
+```bash
+# Install dependencies (first time)
+npm install
+
+# Full build (clean + compile + copy assets)
+npm run build
+
+# Watch mode (auto-rebuild on TypeScript changes)
+npm run watch
+
+# Development mode (clean + build + watch)
+npm run dev
+
+# Type check only (no output)
+npm run typecheck
+
+# Clean build artifacts
+npm run clean
+```
+
+---
+
+## Technical Implementation Details
+
+### Key APIs Used
+
+| API | Purpose |
+|-----|---------|
+| `chrome.debugger` | Attach to tabs and call CDP commands |
+| `Accessibility.enable` | Enable CDP Accessibility domain |
+| `Accessibility.getFullAXTree` | Get complete accessibility tree |
+| `chrome.tabs.query` | Get current active tab |
+| `chrome.tabs.sendMessage` | Send messages to content scripts |
+| `chrome.runtime.onMessage` | Receive messages from content scripts/popup |
+| `chrome.runtime.sendMessage` | Send messages to background |
+| `chrome.webNavigation.getAllFrames` | Get all frame IDs in a tab |
+| `chrome.debugger.onDetach` | Handle debugger detachment events |
+| `chrome.tabs.onRemoved` | Cleanup when tabs are closed |
+
+### CDP Commands Reference
+
+```typescript
+// Enable accessibility domain (must be called first)
+await chrome.debugger.sendCommand({ tabId }, 'Accessibility.enable');
+
+// Get full tree (recommended for full page capture)
+const { nodes } = await chrome.debugger.sendCommand(
+  { tabId },
+  'Accessibility.getFullAXTree',
+  { depth: -1 }
+);
+
+// Alternative: Get snapshot (more granular control)
+const { nodes } = await chrome.debugger.sendCommand(
+  { tabId },
+  'Accessibility.getSnapshot',
+  { depth: -1, fetchEventListeners: true }
+);
+
+// Query specific nodes by role or name
+const { nodes } = await chrome.debugger.sendCommand(
+  { tabId },
+  'Accessibility.queryAXTree',
+  { accessibleName: 'Submit', role: 'button' }
+);
+```
+
+### Message Passing Protocol
+
+```typescript
+// Content script → Background
+{
+  type: 'FRAME_INFO',
+  data: {
+    tabId: number,
+    frameId: number,
+    url: string,
+    title: string,
+    isTopFrame: boolean,
+    timestamp: number
+  }
+}
+
+// Background → Content script
+{ type: 'REQUEST_FRAME_DATA' }
+
+// Popup → Background
+{
+  type: 'SNAPSHOT_REQUEST',
+  data: { tabId: number, includeFrames?: boolean }
+}
+
+// Background → Popup (success)
+{
+  type: 'SNAPSHOT_COMPLETE',
+  data: {
+    success: true,
+    axTree: AXNode[],
+    frameCount: number,
+    frameInfos: FrameInfo[],
+    timestamp: number,
+    tabId: number
+  }
+}
+
+// Background → Popup (error)
+{
+  type: 'SNAPSHOT_ERROR',
+  data: {
+    success: false,
+    error: string,
+    tabId: number
+  }
+}
+```
+
+### AXNode Structure
+
+```typescript
+interface AXNode {
+  nodeId: string;                    // Unique identifier
+  backendDOMNodeId?: number;         // Can map back to DOM element
+  frameId?: string;                  // Frame this node belongs to
+  ignored?: boolean;                 // Whether node is ignored for a11y
+  childIds?: string[];               // References to child nodes
+  role?: AXValue;                    // Accessibility role
+  name?: AXValue;                    // Accessible name
+  description?: AXValue;             // Accessible description
+  value?: AXValue;                   // Value (for inputs, etc.)
+  // ... additional properties
+}
+```
+
+---
+
+## Important Considerations
+
+### 1. Debugger Warning Bar ⚠️
+When the extension captures a snapshot, Chrome displays a yellow warning bar:
+> "An extension is debugging this browser"
+
+**This is a security requirement and cannot be hidden.** The debugger must be attached to use CDP APIs.
+
+### 2. Host Permissions
+The extension uses `<all_urls>` in `host_permissions` to:
+- Inject content scripts into all frames
+- Capture accessibility data from any website
+- Handle cross-origin iframes
+
+### 3. Performance
+- Large pages may produce very large AXTree JSON (megabytes)
+- Capture time increases with page complexity
+- Debugger is automatically detached after capture to minimize impact
+
+### 4. Cross-Origin Iframes
+- Content scripts run in all frames due to `all_frames: true`
+- Each frame sends its info independently via message passing
+- Some sites may block iframe embedding (X-Frame-Options)
+
+### 5. Manifest V3
+- Uses Service Worker instead of background page
+- Service Worker may be terminated when idle
+- All state is stored in memory (Map objects)
+
+---
+
+## Known Limitations
+
+| Limitation | Impact | Workaround |
+|------------|--------|------------|
+| Debugger warning bar | Visible during capture | Cannot be avoided (security requirement) |
+| Large AXTree size | Slow download/view for complex pages | Filter nodes in future version |
+| Chrome pages restricted | Cannot capture chrome:// URLs | By design (Chrome security) |
+| about:blank iframes | May not be captured properly | Requires special handling |
+| No HMR | Must reload extension after changes | Use watch mode for auto-rebuild |
+
+---
+
+## Future Improvements
+
+### Phase 6: Enhancements (Todo)
+- [ ] Add filter options (by role, name, ignored status)
+- [ ] Add search functionality in tree viewer
+- [ ] Implement incremental AXTree updates
+- [ ] Add comparison between snapshots
+- [ ] Export to other formats (CSV, XML)
+- [ ] Add keyboard shortcuts
+- [ ] Implement options page for settings
+- [ ] Add badge with node count
+- [ ] Support for shadow DOM inspection
+- [ ] Better handling of about:blank and data: URLs
+
+### Phase 7: Publishing (Todo)
+- [ ] Create proper extension icons (not placeholders)
+- [ ] Add screenshots for Chrome Web Store
+- [ ] Write store description
+- [ ] Test on Chrome Beta/Dev channels
+- [ ] Submit to Chrome Web Store
+
+---
+
+## Troubleshooting Guide
+
+| Problem | Possible Cause | Solution |
+|---------|---------------|----------|
+| Extension not loading | Invalid manifest | Check manifest.json syntax |
+| No capture button response | Service worker error | Check DevTools console |
+| "No active tab found" | On chrome:// page | Navigate to regular webpage |
+| "Failed to attach debugger" | Another debugger attached | Close DevTools, other extensions |
+| Missing iframe data | Permission issue | Check host_permissions |
+| Build fails | TypeScript errors | Run `npm run typecheck` |
+| Icons not showing | Missing icon files | Rebuild extension |
+
+---
+
+## Dependencies
+
+```json
+{
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "typescript": "^5.3.3"
+  }
+}
+```
+
+---
+
+## Research Resources
+
+- [Chrome DevTools Protocol - Accessibility Domain](https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/)
+- [Chrome Extension Documentation](https://developer.chrome.com/docs/extensions/)
+- [Manifest V3 Overview](https://developer.chrome.com/docs/extensions/mv3/intro/)
+- [chrome.debugger API Reference](https://developer.chrome.com/docs/extensions/reference/api/debugger)
+- [Accessibility Tree Glossary - MDN](https://developer.mozilla.org/en-US/docs/Glossary/Accessibility_tree)
+- [Full Accessibility Tree in Chrome DevTools](https://developer.chrome.com/blog/full-accessibility-tree)
+
+---
+
+## Changelog
+
+### v1.0.0 (2026-03-16)
+- Initial implementation
+- Full AXTree capture via CDP
+- Iframe support with all_frames
+- Popup UI with capture, download, and view
+- TypeScript with strict types
+- Complete documentation
+
+---
+
+*Project created and documented by AI Assistant*  
+*For questions or issues, refer to README.md or plan.md*

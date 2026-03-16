@@ -1,0 +1,28 @@
+{
+  "name": "a11y-snapshot-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension to capture full-page accessibility snapshots including iframes",
+  "type": "module",
+  "scripts": {
+    "build": "npm run clean && npm run build:ts && npm run build:copy",
+    "build:ts": "tsc",
+    "build:copy": "cp src/popup.html dist/ && cp src/popup.css dist/ && cp src/manifest.json dist/ && cp -r src/icons dist/",
+    "clean": "rm -rf dist",
+    "watch": "tsc --watch",
+    "dev": "npm run clean && npm run build && npm run watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "chrome-extension",
+    "accessibility",
+    "a11y",
+    "typescript",
+    "CDP"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "typescript": "^5.3.3"
+  }
+}

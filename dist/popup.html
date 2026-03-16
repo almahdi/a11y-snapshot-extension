@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A11y Snapshot</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 A11y Snapshot</h1>
+      <p class="subtitle">Capture Accessibility Tree</p>
+    </header>
+
+    <main>
+      <div class="status" id="status">
+        <span class="status-icon">⏳</span>
+        <span class="status-text">Ready to capture</span>
+      </div>
+
+      <button id="captureBtn" class="capture-button">
+        <span class="button-icon">📸</span>
+        <span>Capture Snapshot</span>
+      </button>
+
+      <div class="info-section">
+        <h3>Current Tab</h3>
+        <div class="tab-info" id="tabInfo">
+          <p class="tab-title" id="tabTitle">Loading...</p>
+          <p class="tab-url" id="tabUrl">...</p>
+        </div>
+      </div>
+
+      <div class="results-section" id="resultsSection" style="display: none;">
+        <h3>Capture Results</h3>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-value" id="nodeCount">0</span>
+            <span class="stat-label">AX Nodes</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="frameCount">0</span>
+            <span class="stat-label">Frames</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="captureTime">0</span>
+            <span class="stat-label">ms</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="downloadJsonBtn" class="action-button">
+            📥 Download JSON
+          </button>
+          <button id="viewTreeBtn" class="action-button secondary">
+            👁️ View Tree
+          </button>
+        </div>
+      </div>
+
+      <div class="error-section" id="errorSection" style="display: none;">
+        <h3>⚠️ Error</h3>
+        <p id="errorMessage">An error occurred</p>
+      </div>
+
+      <div class="notes-section">
+        <h4>ℹ️ Notes</h4>
+        <ul>
+          <li>Chrome will show a debugging bar during capture</li>
+          <li>Capture includes all iframes with proper permissions</li>
+          <li>Large pages may take longer to process</li>
+        </ul>
+      </div>
+    </main>
+
+    <footer>
+      <p>A11y Snapshot Extension v1.0.0</p>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
